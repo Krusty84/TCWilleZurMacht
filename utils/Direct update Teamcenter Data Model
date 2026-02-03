@@ -1,0 +1,10 @@
+1. In BMIDE create a new extension file (myDangerousUpdate, for example), and set it as active
+2. Add a new property (as example)
+3. Save BMIDE project
+4. Take myDangerousUpdate.xml copy to C:\Temp
+5. Open Teamcenter CLI:
+6. business_model_updater -u=infodba -p=****** -g=dba -mode=upgrade -update=all -file=myDangerousUpdate.xml -log=update.log
+7. generate_client_meta_cache -u=infodba -p=****** -g=dba -t delete all
+8. generate_metadata_cache -u=infodba -p=****** -g=dba -force
+9. generate_client_meta_cache -u=infodba -p=****** -g=dba -t generate all
+10. Enjoy It
