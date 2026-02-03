@@ -1,0 +1,142 @@
+#!/bin/ksh
+
+# 1. Turn off the XRender pipeline (fixes weird transparency)
+export JAVA_OPTIONS="-Dsun.java2d.xrender=false \
+  -Djdk.gtk.version=2 \
+  -Dswing.defaultlaf=javax.swing.plaf.metal.MetalLookAndFeel"
+
+SCRIPTDIR=`dirname $0`                  # The dir containing this script.
+SCRIPTDIR=`cd ${SCRIPTDIR}; pwd`        # Convert it to an absolute path -
+STARTDIR=`pwd`
+
+cd ${SCRIPTDIR}
+
+TEM_DEBUG=""
+for var in $* ; do
+    EITHER=""
+
+    if [ "$var" = "-verbose" ] ; then
+        EITHER="1"
+    elif [ "$var" = "-rmdebug" ] ; then
+        EITHER="1"
+    fi
+        
+    if [ "$var" = "-rmdebug" ] ; then
+        TEM_DEBUG="-Xdebug -Xrunjdwp:transport=dt_socket,address=0.0.0.0:8469,server=y,suspend=y"
+    fi
+    
+    if [ "$EITHER" = "" ] ; then
+        TEM_SPLASH=""
+    fi
+done
+
+JRE_VERSION=1.8.0_20
+case `uname` in
+  HP-UX)
+    JRE_VERSION=1.8
+    ;;
+  AIX)
+    JRE_VERSION=1.8
+    ;;
+esac
+
+TEM_JRE=""
+if [ -f ./tem_init.sh ] ; then
+    . ./tem_init.sh
+    if [ -f $TC_JRE_HOME/bin/java ] ; then
+        TEM_JRE=${TC_JRE_HOME}
+    fi
+fi
+
+JARPATH=`echo install:${TEM_PATH} | tr -s ':' ' '`
+
+# These are the only jars required to start tem. Rest of them will be loaded inside tem.
+JARS3=./install/commons-lang.jar:./install/jdom.jar:./install/tem.jar
+
+if [ "${TEM_JRE}" = "" ] ; then
+    for var in $* ; do 
+        if [ "${TEM_JRE}" = "1" ] ; then
+            TEM_JRE=$var
+        fi
+        if [ "$var" = "-jre" -a "${TEM_JRE}" = "" ] ; then
+            TEM_JRE=1
+        fi
+    done
+    
+    if [ "${TEM_JRE}" = "" ] ; then
+        TEM_JRE=${JRE64_HOME}
+    fi
+    
+    if [ "${TEM_JRE}" = "" ] ; then
+        TEM_JRE=${JRE_HOME}
+    fi
+
+    if [ "${TEM_JRE}" = "" ] ; then
+        echo "Path to Java (min version ${JRE_VERSION}) not set. Use '-jre' or JRE_HOME."
+        return 1
+    fi
+
+    # Validate the JRE
+    JAVA_COMMAND=${TEM_JRE}/bin/java
+    if [ ! -f ${JAVA_COMMAND} ] ; then
+        echo "Cannot find Java at ${JAVA_COMMAND}."
+        return 1
+    fi
+    ${JAVA_COMMAND} ${JAVA_OPTIONS} -cp ${JARS3} \
+      com.teamcenter.install.util.struct.JreChecker -version ${JRE_VERSION}
+    if [ ! $? -eq 0 ] ; then
+        echo "Selected JRE not valid. Provide another with '-jre' or JRE_HOME."
+        return 1
+    fi
+else
+    JAVA_COMMAND=${TEM_JRE}/bin/java
+fi
+
+# Prune old data
+${JAVA_COMMAND} ${JAVA_OPTIONS} -cp ${JARS3} \
+  com.teamcenter.install.tem.tasks.PruneTask
+
+# Build full classpath
+for i in $JARPATH ; do
+    JARS=${JARS}:`ls -m ${i}/*.jar 2>/dev/null | tr -s ',' ':' | tr -d ' \n'`
+done
+
+# Finally launch the TEM installer/app
+case `uname` in
+  HP-UX)
+    case `uname -m` in
+      ia64) # HP Itanium.
+        ${JAVA_COMMAND} ${TEM_DEBUG} ${JAVA_OPTIONS} \
+          -Xms128M -Xmx512M -Xss1024K \
+          -DSTART_DIR="${STARTDIR}" ${TEM_SPLASH} \
+          -cp ${JARS} com.teamcenter.install.tem.struct.Tem $*
+        ;;
+      *)
+        ${JAVA_COMMAND} ${TEM_DEBUG} ${JAVA_OPTIONS} \
+          -Xms128M -Xmx512M \
+          -DSTART_DIR="${STARTDIR}" ${TEM_SPLASH} \
+          -cp ${JARS} com.teamcenter.install.tem.struct.Tem $*
+        ;;
+    esac
+    ;;
+  SunOS)
+    # Oracle vs OpenJDK
+    if [ -f ${TEM_JRE}/bin/sparcv9 ] ; then
+      ${TEM_JRE}/bin/sparcv9/java ${TEM_DEBUG} ${JAVA_OPTIONS} \
+        -Xms128M -Xmx512M \
+        -DSTART_DIR="${STARTDIR}" ${TEM_SPLASH} \
+        -cp ${JARS} com.teamcenter.install.tem.struct.Tem $*
+    else
+      ${TEM_JRE}/bin/java ${TEM_DEBUG} ${JAVA_OPTIONS} \
+        -Xms128M -Xmx512M \
+        -DSTART_DIR="${STARTDIR}" ${TEM_SPLASH} \
+        -cp ${JARS} com.teamcenter.install.tem.struct.Tem $*
+    fi
+    ;;
+  *)
+    ${JAVA_COMMAND} ${TEM_DEBUG} ${JAVA_OPTIONS} \
+      -Xms128M -Xmx512M \
+      -DSTART_DIR="${STARTDIR}" ${TEM_SPLASH} \
+      -cp ${JARS} com.teamcenter.install.tem.struct.Tem $*
+    ;;
+esac
