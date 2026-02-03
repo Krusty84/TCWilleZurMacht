@@ -1,0 +1,63 @@
+In Yandex Cloud need to set root password: login as regulr user, and user passwd root
+===
+sudo tee /etc/profile.d/tweaker.sh <<'EOF'
+# set TWEAKER for all users
+export TWEAKER=postgres
+EOF
+===
+sudo chmod 644 /etc/profile.d/tweaker.sh
+===
+reboot
+echo $TWEAKER
+# you should see: postgres
+===
+sudo sh -c 'echo "TWEAKER=postgres" >> /etc/environment'
+===
+sudo dnf install unixODBC unixODBC-devel
+sudo dnf install postgresql-odbc
+===
+/etc/odbcinst.ini:
+[PostgreSQL_TC_x64]
+Description = ODBC version 12.00 for PostgreSQL
+Driver      = /usr/lib64/psqlodbcw.so
+Driver64    = /usr/lib64/psqlodbcw.so
+FileUsage   = 1
+
+===
+1. Create the three data dirs
+mkdir -p /usr/Siemens/tcdb/infodba_idata \
+         /usr/Siemens/tcdb/infodba_indx \
+         /usr/Siemens/tcdb/infodba_ilog
+
+2. Give them to the postgres process user
+chown -R postgres:postgres /usr/Siemens/tcdb/infodba_*
+
+3. Secure with user-only write permission
+chmod 777 /usr/Siemens/tcdb/infodba_*
+===
+1.Create required directories
+sudo mkdir -p /usr/Siemens/tcdb/infodba_idata \
+             /usr/Siemens/tcdb/infodba_indx \
+             /usr/Siemens/tcdb/infodba_ilog
+
+2.Change ownership to the postgres OS user
+sudo chown postgres:postgres /usr/Siemens/tcdb/infodba_idata \
+                             /usr/Siemens/tcdb/infodba_indx \
+                             /usr/Siemens/tcdb/infodba_ilog
+
+3.Demo-only: allow all users read, write, and execute
+sudo chmod 777 /usr/Siemens/tcdb/infodba_idata \
+               /usr/Siemens/tcdb/infodba_indx  \
+               /usr/Siemens/tcdb/infodba_ilog
+
+sudo mkdir -p /usr/Siemens/tcpooldb/tcsrvmgr_idata
+sudo chown -R postgres:postgres /usr/Siemens/tcpooldb/tcsrvmgr_idata
+sudo chmod 777 /usr/Siemens/tcpooldb/tcsrvmgr_idata
+
+===
+for debug:
+sudo dnf install lsof
+sudo lsof -i :4544
+sudo kill pid of the process uses 4544
+
+
